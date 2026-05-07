@@ -1,0 +1,11 @@
+__pycache__/
+.env
+logs/
+*.pyc
+.DS_Store
+dbt/target/
+dbt/dbt_packages/
+dbt/.user.yml
+dbt/profiles.yml
+data/
+bolig-pipeline/
