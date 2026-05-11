@@ -2,13 +2,17 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.operators.bash import BashOperator
 from datetime import datetime
+import os
 import requests
 import pandas as pd
 import io
 from sqlalchemy import create_engine, text
+from azure.storage.blob import BlobServiceClient
+from azure.core.exceptions import ResourceExistsError
 
 DB_CONN = "postgresql+psycopg2://airflow:airflow@postgres/airflow"
 DBT_DIR = "/opt/airflow/dbt"
+AZURE_CONTAINER = "boligpriser-raw"
 
 
 def fetch_bolig_data():
@@ -36,6 +40,19 @@ def fetch_bolig_data():
     print(f"Antal rækker: {len(df)}")
     print(df.head())
 
+    # Upload raw CSV to Azure Blob Storage
+    conn_str = os.environ["AZURE_STORAGE_CONNECTION_STRING"]
+    blob_client = BlobServiceClient.from_connection_string(conn_str)
+    container = blob_client.get_container_client(AZURE_CONTAINER)
+    try:
+        container.create_container()
+    except ResourceExistsError:
+        pass
+    blob_name = f"ejen11_{datetime.utcnow().strftime('%Y%m%d')}.csv"
+    container.upload_blob(blob_name, response.text, overwrite=True)
+    print(f"Uploadet til Azure Blob: {AZURE_CONTAINER}/{blob_name}")
+
+    # Load into PostgreSQL
     engine = create_engine(DB_CONN)
     with engine.begin() as conn:
         conn.execute(text("DROP TABLE IF EXISTS raw_boligpriser"))
